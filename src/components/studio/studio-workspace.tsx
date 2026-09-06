@@ -6,6 +6,7 @@ import type { CanvasSnapshot } from "@/lib/studio/types";
 import { LayersPanel } from "./layers-panel";
 import { StudioCanvas } from "./studio-canvas";
 import { StudioToolbar } from "./studio-toolbar";
+import { ChatPanel } from "./chat-panel";
 
 export function StudioWorkspace({
   designId,
@@ -33,8 +34,8 @@ export function StudioWorkspace({
         <div className="flex flex-1 items-center justify-center overflow-auto p-6">
           <StudioCanvas />
         </div>
-        <div className="flex w-80 flex-col border-l border-border p-4 text-sm text-muted-foreground">
-          Chat with the Creative Director lands here in Milestone 4.
+        <div className="flex w-80 flex-col border-l border-border">
+          <ChatPanel designId={designId} />
         </div>
       </div>
     </div>

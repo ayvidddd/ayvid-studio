@@ -7,6 +7,7 @@ import {
   type RequestStatusResponse,
   type ImageGenerationInput,
   type ImageToVideoInput,
+  type ImageEditInput,
 } from "./schemas";
 import { mockCreateRequest, mockGetStatus, mockCancelRequest } from "./mock";
 
@@ -65,6 +66,14 @@ function toVideoApiBody(input: ImageToVideoInput) {
   };
 }
 
+function toEditApiBody(input: ImageEditInput) {
+  return {
+    image_url: input.imageUrl,
+    prompt: input.prompt,
+    num_images: input.numImages,
+  };
+}
+
 export async function createImageGeneration(params: {
   model: string;
   input: ImageGenerationInput;
@@ -91,6 +100,21 @@ export async function createImageToVideo(params: {
   return apiRequest(
     `/${params.model}${query}`,
     { method: "POST", body: JSON.stringify(toVideoApiBody(params.input)) },
+    CreateRequestResponseSchema,
+  );
+}
+
+export async function createImageEdit(params: {
+  model: string;
+  input: ImageEditInput;
+  webhookUrl?: string;
+}): Promise<CreateRequestResponse> {
+  if (isMockMode()) return mockCreateRequest("IMAGE");
+
+  const query = params.webhookUrl ? `?hf_webhook=${encodeURIComponent(params.webhookUrl)}` : "";
+  return apiRequest(
+    `/${params.model}${query}`,
+    { method: "POST", body: JSON.stringify(toEditApiBody(params.input)) },
     CreateRequestResponseSchema,
   );
 }

@@ -59,6 +59,18 @@ export const ImageToVideoInputSchema = z.object({
 });
 export type ImageToVideoInput = z.infer<typeof ImageToVideoInputSchema>;
 
+/**
+ * Whole-image, prompt-guided edit. Higgsfield's public API has no masked
+ * region-edit endpoint — `/reve/edit` changes the whole image based on the
+ * prompt's description of what to change, it does not accept a mask.
+ */
+export const ImageEditInputSchema = z.object({
+  imageUrl: z.string().url(),
+  prompt: z.string().min(1).max(4000),
+  numImages: z.number().int().min(1).max(4).default(1),
+});
+export type ImageEditInput = z.infer<typeof ImageEditInputSchema>;
+
 /** Confirmed-working model endpoint paths. Extend as more are validated against the live API. */
 export const IMAGE_MODELS = {
   "soul-standard": "higgsfield-ai/soul/standard",
@@ -66,6 +78,10 @@ export const IMAGE_MODELS = {
 export const VIDEO_MODELS = {
   "kling-v2.5-turbo-pro": "kling-video/v2.5-turbo/pro/image-to-video",
 } as const;
+export const EDIT_MODELS = {
+  "reve-edit": "reve/edit",
+} as const;
 
 export type ImageModelKey = keyof typeof IMAGE_MODELS;
 export type VideoModelKey = keyof typeof VIDEO_MODELS;
+export type EditModelKey = keyof typeof EDIT_MODELS;

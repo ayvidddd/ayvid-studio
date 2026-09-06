@@ -8,9 +8,12 @@ creatives, and short video ads live on a canvas. Higgsfield is the generation ba
 **Milestone 1**: auth, workspace/Brand Kit schema, Brand Kit CRUD.
 **Milestone 2**: Higgsfield client with mock mode, the async generation job system, SSE progress
 streaming, and a webhook endpoint.
-**Milestone 3** (this commit): Studio three-panel layout, an editable Konva canvas (text/shape/
-image layers, drag/resize/rotate), and persisted version history with undo/redo. Later milestones
-(agents wired to the canvas, billing, motion polish, deploy) land as the project progresses.
+**Milestone 3**: Studio three-panel layout, an editable Konva canvas (text/shape/image layers,
+drag/resize/rotate), and persisted version history with undo/redo.
+**Milestone 4** (this commit): the Designer agent, chatting live in the Studio's right panel —
+generates and edits images via Higgsfield, applies the Brand Kit, and materializes results
+straight onto the canvas. Later milestones (more agents, campaign export, billing, motion polish,
+deploy) land as the project progresses.
 
 ## Stack
 
@@ -45,8 +48,9 @@ Supabase Postgres + Storage · NextAuth v5 (Auth.js) · Zod · Vitest
      set to `mock` to exercise the full job lifecycle (queued → in_progress → completed) without
      calling the real API or spending credits; set it to `live` once you have real keys. Tests
      always run in mock mode regardless of this setting.
-   - `ANTHROPIC_API_KEY` — not required until Milestone 4, but declared now so `.env.local`
-     doesn't need to change shape later.
+   - `ANTHROPIC_API_KEY` — from the Anthropic Console. Unlike Higgsfield, there's no mock mode
+     for the agent chat itself — it's a real Claude API call every time, so the Designer agent
+     genuinely does nothing without this key set to a real value.
 
    For local development without a Supabase project yet, `pnpm exec prisma dev` spins up a
    throwaway local Postgres and prints a connection string you can use for both `DATABASE_URL`
@@ -130,5 +134,20 @@ file) — no live database is required to run the test suite.
   is intentionally client-only and reset on reload.
 - Konva requires `window`/canvas APIs, so the canvas is loaded via `next/dynamic(..., { ssr: false })`
   — it can never render during SSR.
+- **Designer agent**: `skills/designer/SKILL.md` is the editable system prompt (read from disk at
+  request time via `src/lib/agents/skill.ts`, not compiled in — edit it without touching code).
+  `src/lib/agents/harness.ts` wraps every tool call with a credit-balance guard, retry-with-backoff
+  on transient failures, and structured start/success/error logging with an eval-hook extension
+  point. Tools are Vercel AI SDK `tool()` definitions (`src/lib/agents/designer/tools.ts`):
+  `generate_image` and `edit_image` create a Higgsfield job and poll it to completion (bounded to
+  45s) inside the tool call itself, returning signed image URLs directly in the tool result —
+  the chat panel watches for a completed `generate_image`/`edit_image` result and adds it to the
+  canvas as a new layer automatically. `apply_brand_kit` re-fetches the Brand Kit on demand.
+  `remove_background`, `upscale`, and `outpaint` are registered but honestly report themselves
+  unavailable — Higgsfield's public REST API has no documented endpoint for any of the three (only
+  `/reve/edit`, a whole-image prompt-guided edit with no masking, exists for "editing" — that's
+  what `edit_image` uses; there's no true masked region-edit either). Faking these against
+  made-up endpoints would silently break the moment someone tried them for real, so the tools
+  exist and say so instead.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.

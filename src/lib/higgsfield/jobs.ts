@@ -1,20 +1,23 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { createImageGeneration, createImageToVideo, getRequestStatus } from "./client";
+import { createImageGeneration, createImageToVideo, createImageEdit, getRequestStatus } from "./client";
 import {
   IMAGE_MODELS,
   VIDEO_MODELS,
+  EDIT_MODELS,
   type HiggsfieldJobStatus,
   type ImageGenerationInput,
   type ImageToVideoInput,
+  type ImageEditInput,
   type RequestStatusResponse,
 } from "./schemas";
 import { fetchAndStoreGenerationOutput, generationOutputObjectKey } from "@/lib/storage/generation-outputs";
-import { GenerationStatus, type GenerationKind } from "@/generated/prisma/enums";
+import { GenerationStatus } from "@/generated/prisma/enums";
 import type { GenerationJob } from "@/generated/prisma/client";
 
 // Placeholder flat costs until Higgsfield's per-model cost-estimate endpoint is wired in.
-const PLACEHOLDER_CREDIT_COST: Record<GenerationKind, number> = { IMAGE: 1, VIDEO: 5 };
+const PLACEHOLDER_CREDIT_COST = { IMAGE: 1, VIDEO: 5, EDIT: 1 } as const;
+type JobVariant = keyof typeof PLACEHOLDER_CREDIT_COST;
 
 const TERMINAL_STATUSES: readonly GenerationStatus[] = [
   GenerationStatus.COMPLETED,
@@ -65,19 +68,32 @@ export type CreateGenerationJobParams =
       modelKey: keyof typeof VIDEO_MODELS;
       input: ImageToVideoInput;
       parentJobId?: string;
+    }
+  | {
+      kind: "EDIT";
+      workspaceId: string;
+      modelKey: keyof typeof EDIT_MODELS;
+      input: ImageEditInput;
+      parentJobId?: string;
     };
 
 export async function createGenerationJob(params: CreateGenerationJobParams): Promise<GenerationJob> {
   const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: params.workspaceId } });
-  const estimatedCost = PLACEHOLDER_CREDIT_COST[params.kind];
+  const estimatedCost = PLACEHOLDER_CREDIT_COST[params.kind as JobVariant];
   if (workspace.creditBalance < estimatedCost) throw new InsufficientCreditsError();
 
-  const model = params.kind === "IMAGE" ? IMAGE_MODELS[params.modelKey] : VIDEO_MODELS[params.modelKey];
+  const model =
+    params.kind === "IMAGE"
+      ? IMAGE_MODELS[params.modelKey]
+      : params.kind === "VIDEO"
+        ? VIDEO_MODELS[params.modelKey]
+        : EDIT_MODELS[params.modelKey];
 
   const job = await prisma.generationJob.create({
     data: {
       workspaceId: params.workspaceId,
-      kind: params.kind,
+      // EDIT jobs still produce a still image; the DB only distinguishes IMAGE vs VIDEO output.
+      kind: params.kind === "VIDEO" ? "VIDEO" : "IMAGE",
       model,
       prompt: params.input.prompt,
       params: params.input,
@@ -88,7 +104,9 @@ export async function createGenerationJob(params: CreateGenerationJobParams): Pr
   const response =
     params.kind === "IMAGE"
       ? await createImageGeneration({ model, input: params.input, webhookUrl: webhookUrl() })
-      : await createImageToVideo({ model, input: params.input, webhookUrl: webhookUrl() });
+      : params.kind === "VIDEO"
+        ? await createImageToVideo({ model, input: params.input, webhookUrl: webhookUrl() })
+        : await createImageEdit({ model, input: params.input, webhookUrl: webhookUrl() });
 
   return prisma.generationJob.update({
     where: { id: job.id },
