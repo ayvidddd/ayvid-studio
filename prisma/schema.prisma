@@ -80,12 +80,13 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships    WorkspaceMember[]
-  invites        WorkspaceInvite[]
-  brandKit       BrandKit?
-  generationJobs GenerationJob[]
-  designs        Design[]
-  campaigns      Campaign[]
+  memberships     WorkspaceMember[]
+  invites         WorkspaceInvite[]
+  brandKit        BrandKit?
+  generationJobs  GenerationJob[]
+  designs         Design[]
+  campaigns       Campaign[]
+  creditPurchases CreditPurchase[]
 }
 
 model WorkspaceMember {
@@ -307,4 +308,30 @@ model CopyVariant {
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([campaignId])
+}
+
+// ---------- Billing ----------
+
+enum CreditPurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model CreditPurchase {
+  id                      String               @id @default(cuid())
+  workspaceId             String
+  stripeCheckoutSessionId String               @unique
+  packId                  String
+  creditsPurchased        Int
+  amountCents             Int
+  currency                String
+  status                  CreditPurchaseStatus @default(PENDING)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }

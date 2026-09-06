@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { Image as KonvaImage, Text as KonvaText, Rect, Ellipse } from "react-konva";
 import type Konva from "konva";
+import gsap from "gsap";
 import useImage from "use-image";
 import type { Layer } from "@/lib/studio/types";
 import { useStudioStore } from "@/lib/studio/store";
@@ -10,6 +11,40 @@ import { useStudioStore } from "@/lib/studio/store";
 interface LayerNodeProps {
   layer: Layer;
   registerNode: (id: string, node: Konva.Node | null) => void;
+}
+
+/**
+ * The "materialize" moment when a generated/added layer first appears: fades
+ * and scales in rather than popping in at full size. Runs once per mount
+ * (or, for images, once the image itself finishes loading) — a plain object
+ * is tweened and applied to the Konva node via its setter methods, since
+ * Konva nodes use getter/setter methods rather than plain properties GSAP
+ * can assign directly.
+ */
+function useMaterialize(nodeRef: RefObject<Konva.Node | null>, targetOpacity: number, ready: unknown) {
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node || !ready) return;
+
+    const proxy = { opacity: 0, scale: 0.85 };
+    const tween = gsap.to(proxy, {
+      opacity: targetOpacity,
+      scale: 1,
+      duration: 0.5,
+      ease: "back.out(1.4)",
+      onUpdate: () => {
+        node.opacity(proxy.opacity);
+        node.scaleX(proxy.scale);
+        node.scaleY(proxy.scale);
+        node.getLayer()?.batchDraw();
+      },
+    });
+
+    return () => {
+      tween.kill();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 }
 
 function useLayerHandlers(layer: Layer) {
@@ -67,6 +102,8 @@ export function LayerNode({ layer, registerNode }: LayerNodeProps) {
     return () => registerNode(layer.id, null);
   }, [layer.id, registerNode]);
 
+  useMaterialize(ref, layer.opacity, layer.type !== "image" ? true : undefined);
+
   const setRef = (node: Konva.Node | null) => {
     ref.current = node;
   };
@@ -114,5 +151,18 @@ function ImageLayerNode({
   setRef: (node: Konva.Node | null) => void;
 }) {
   const [image] = useImage(layer.src, "anonymous");
-  return <KonvaImage ref={setRef} {...commonProps(layer, handlers)} image={image} />;
+  const localRef = useRef<Konva.Node | null>(null);
+
+  useMaterialize(localRef, layer.opacity, image);
+
+  return (
+    <KonvaImage
+      ref={(node) => {
+        localRef.current = node;
+        setRef(node);
+      }}
+      {...commonProps(layer, handlers)}
+      image={image}
+    />
+  );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ParticlesProvider } from "@/components/providers/particles-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -26,10 +27,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SessionProvider>
-          {children}
-          <Toaster richColors position="top-center" />
-        </SessionProvider>
+        <ParticlesProvider>
+          <SessionProvider>
+            {children}
+            <Toaster richColors position="top-center" />
+          </SessionProvider>
+        </ParticlesProvider>
       </body>
     </html>
   );

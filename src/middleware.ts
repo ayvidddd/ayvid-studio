@@ -4,5 +4,5 @@ import { edgeAuthConfig } from "@/lib/auth/edge";
 export const { auth: middleware } = NextAuth(edgeAuthConfig);
 
 export const config = {
-  matcher: ["/studio/:path*", "/brand-kit/:path*", "/workspace/:path*", "/onboarding/:path*"],
+  matcher: ["/studio/:path*", "/brand-kit/:path*", "/workspace/:path*", "/onboarding/:path*", "/billing/:path*"],
 };

@@ -16,11 +16,15 @@ canvas.
 **Milestone 5**: the Video Producer joins the same Studio chat under a shared Creative Director
 persona — animates a still into a short video with a scrubbable preview timeline, plus curated
 motion presets and job-status follow-up.
-**Milestone 6** (this commit): Copywriter and Campaign Strategist join the same shared chat —
+**Milestone 6**: Copywriter and Campaign Strategist join the same shared chat —
 `create_campaign` turns a brief into a full multi-format deliverable set, copy gets saved per
 platform with a real banned-word check, and a campaign page exports every format as a PNG (plus a
-copy.txt) in one ZIP, all rendered client-side. Later milestones (billing, motion polish, deploy)
-land as the project progresses.
+copy.txt) in one ZIP, all rendered client-side.
+**Milestone 7** (this commit): the landing page got GSAP entrance animations, an ambient
+`@tsparticles` background, and a "materialize" effect when a generated layer lands on the canvas;
+the marketing page is Lighthouse-verified at a **96 performance score**. Credit top-ups now run
+through Stripe Checkout (`/billing`) with a webhook that credits the workspace on
+`checkout.session.completed`. Milestone 8 (full test suite, Playwright E2E, deploy) is next.
 
 ## Stack
 
@@ -58,6 +62,12 @@ Supabase Postgres + Storage · NextAuth v5 (Auth.js) · Zod · Vitest
    - `ANTHROPIC_API_KEY` — from the Anthropic Console. Unlike Higgsfield, there's no mock mode
      for the agent chat itself — it's a real Claude API call every time, so the Designer agent
      genuinely does nothing without this key set to a real value.
+   - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` — from the Stripe dashboard. No dashboard-side
+     Product/Price setup is needed: credit packs are defined in code
+     (`src/lib/billing/packs.ts`) and priced inline via Checkout's `price_data`. Point a webhook
+     endpoint at `/api/billing/webhook` listening for `checkout.session.completed` and use its
+     signing secret for `STRIPE_WEBHOOK_SECRET`. There's no mock mode — `/billing` genuinely can't
+     start a checkout without a real `STRIPE_SECRET_KEY`.
 
    For local development without a Supabase project yet, `pnpm exec prisma dev` spins up a
    throwaway local Postgres and prints a connection string you can use for both `DATABASE_URL`
@@ -191,3 +201,21 @@ file) — no live database is required to run the test suite.
   fast-follow, not done here.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.
+- **Motion & landing page**: `src/components/marketing/landing-hero.tsx` and `feature-grid.tsx` use
+  GSAP (`useGSAP` + `ScrollTrigger`) for entrance animation; `particle-background.tsx` renders an
+  ambient `@tsparticles` field gated by `useSyncExternalStore` on `prefers-reduced-motion` and a
+  rough low-power-device heuristic (core count / device memory) so it never runs on hardware or
+  preferences that can't afford it. `src/components/studio/layer-node.tsx`'s `useMaterialize()` hook
+  tweens a newly-added canvas layer's opacity/scale in with GSAP by animating a plain proxy object
+  (Konva nodes expose getter/setter methods, not writable properties, so GSAP can't tween them
+  directly). The marketing page (`/`) measures **96 on Lighthouse performance** (verified via the
+  Lighthouse CLI against a production build, Edge as the headless browser).
+- **Billing**: `src/lib/billing/stripe.ts` is a lazy Stripe client singleton, same pattern as the
+  Supabase admin client. `createCheckoutSession` (`src/lib/billing/actions.ts`) creates a Stripe
+  Checkout Session priced from a fixed in-code pack list and a `PENDING` `CreditPurchase` row keyed
+  by the Checkout Session id in the same call. `POST /api/billing/webhook` verifies the Stripe
+  signature against the *raw* request body (Next's route handlers give you that natively — no
+  special body-parser config needed) and, on `checkout.session.completed`, calls
+  `creditWorkspaceForSession` (`src/lib/billing/checkout-completed.ts`), which is idempotent: it
+  no-ops if the matching `CreditPurchase` is already `COMPLETED`, since Stripe can and does redeliver
+  the same webhook event more than once.

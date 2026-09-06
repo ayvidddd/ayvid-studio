@@ -1,5 +1,6 @@
 allowBuilds:
   '@prisma/engines': true
+  '@tsparticles/engine': true
   esbuild: true
   prisma: true
   sharp: false
