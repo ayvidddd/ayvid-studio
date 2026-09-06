@@ -5,6 +5,7 @@ import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { loadBrandKitContext, formatBrandKitForPrompt } from "@/lib/agents/context";
 import { loadSkill } from "@/lib/agents/skill";
 import { createDesignerTools } from "@/lib/agents/designer/tools";
+import { createVideoProducerTools } from "@/lib/agents/video-producer/tools";
 
 export const maxDuration = 60;
 
@@ -23,18 +24,23 @@ export async function POST(request: Request) {
   const design = await prisma.design.findFirst({ where: { id: designId, workspaceId } });
   if (!design) return new Response("Not found", { status: 404 });
 
-  const [skill, brandKit, modelMessages] = await Promise.all([
+  const [directorSkill, designerSkill, videoSkill, brandKit, modelMessages] = await Promise.all([
+    loadSkill("creative-director"),
     loadSkill("designer"),
+    loadSkill("video-producer"),
     loadBrandKitContext(workspaceId),
     convertToModelMessages(messages),
   ]);
-  const system = `${skill}\n\n## Current Brand Kit\n${formatBrandKitForPrompt(brandKit)}`;
+
+  const system = [directorSkill, designerSkill, videoSkill, `## Current Brand Kit\n${formatBrandKitForPrompt(brandKit)}`].join(
+    "\n\n---\n\n",
+  );
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-6"),
     system,
     messages: modelMessages,
-    tools: createDesignerTools(workspaceId),
+    tools: { ...createDesignerTools(workspaceId), ...createVideoProducerTools(workspaceId) },
     stopWhen: stepCountIs(6),
   });
 

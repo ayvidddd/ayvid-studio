@@ -31,9 +31,13 @@ function isToolPart(part: UIMessage["parts"][number]): part is Extract<
   return part.type.startsWith("tool-");
 }
 
+const IMAGE_PRODUCING_TOOLS = new Set(["tool-generate_image", "tool-edit_image"]);
+const VIDEO_PRODUCING_TOOLS = new Set(["tool-generate_video"]);
+
 export function ChatPanel({ designId }: { designId: string }) {
   const [input, setInput] = useState("");
   const addLayer = useStudioStore((s) => s.addLayer);
+  const addVideo = useStudioStore((s) => s.addVideo);
   const canvas = useStudioStore((s) => s.canvas);
   const placedToolCallIds = useRef<Set<string>>(new Set());
 
@@ -54,24 +58,29 @@ export function ChatPanel({ designId }: { designId: string }) {
         const output = "output" in part ? part.output : undefined;
         if (!isGenerationToolOutput(output) || !output.ok) continue;
         if (output.data?.status !== "COMPLETED") continue;
-        const imageUrl = output.data.images?.[0];
-        if (!imageUrl) continue;
+        const url = output.data.images?.[0];
+        if (!url) continue;
 
-        placedToolCallIds.current.add(part.toolCallId);
-        addLayer({
-          id: createLayerId(),
-          type: "image",
-          src: imageUrl,
-          x: canvas.width * 0.1,
-          y: canvas.height * 0.1,
-          width: canvas.width * 0.8,
-          height: canvas.height * 0.8,
-          rotation: 0,
-          opacity: 1,
-        });
+        if (IMAGE_PRODUCING_TOOLS.has(part.type)) {
+          placedToolCallIds.current.add(part.toolCallId);
+          addLayer({
+            id: createLayerId(),
+            type: "image",
+            src: url,
+            x: canvas.width * 0.1,
+            y: canvas.height * 0.1,
+            width: canvas.width * 0.8,
+            height: canvas.height * 0.8,
+            rotation: 0,
+            opacity: 1,
+          });
+        } else if (VIDEO_PRODUCING_TOOLS.has(part.type)) {
+          placedToolCallIds.current.add(part.toolCallId);
+          addVideo({ id: createLayerId(), jobId: part.toolCallId, url });
+        }
       }
     }
-  }, [messages, addLayer, canvas.width, canvas.height]);
+  }, [messages, addLayer, addVideo, canvas.width, canvas.height]);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -169,7 +178,10 @@ function ToolStatusPill({
   if (isGenerationToolOutput(output)) {
     if (!output.ok) return <p className="text-xs text-destructive">{toolName}: {output.error}</p>;
     if (output.data?.available === false) return <p className="text-xs text-muted-foreground">{output.data.message}</p>;
-    if (output.data?.status === "COMPLETED") return <p className="text-xs text-muted-foreground">{toolName}: done — added to canvas.</p>;
+    if (output.data?.status === "COMPLETED") {
+      const destination = VIDEO_PRODUCING_TOOLS.has(part.type) ? "video preview" : "canvas";
+      return <p className="text-xs text-muted-foreground">{toolName}: done — added to {destination}.</p>;
+    }
     if (output.data?.status) return <p className="text-xs text-muted-foreground">{toolName}: {output.data.status.toLowerCase()}</p>;
   }
 

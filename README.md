@@ -10,10 +10,13 @@ creatives, and short video ads live on a canvas. Higgsfield is the generation ba
 streaming, and a webhook endpoint.
 **Milestone 3**: Studio three-panel layout, an editable Konva canvas (text/shape/image layers,
 drag/resize/rotate), and persisted version history with undo/redo.
-**Milestone 4** (this commit): the Designer agent, chatting live in the Studio's right panel —
-generates and edits images via Higgsfield, applies the Brand Kit, and materializes results
-straight onto the canvas. Later milestones (more agents, campaign export, billing, motion polish,
-deploy) land as the project progresses.
+**Milestone 4**: the Designer agent, chatting live in the Studio's right panel — generates and
+edits images via Higgsfield, applies the Brand Kit, and materializes results straight onto the
+canvas.
+**Milestone 5** (this commit): the Video Producer joins the same Studio chat under a shared
+Creative Director persona — animates a still into a short video with a scrubbable preview
+timeline, plus curated motion presets and job-status follow-up. Later milestones (copywriting,
+campaign export, billing, motion polish, deploy) land as the project progresses.
 
 ## Stack
 
@@ -149,5 +152,21 @@ file) — no live database is required to run the test suite.
   what `edit_image` uses; there's no true masked region-edit either). Faking these against
   made-up endpoints would silently break the moment someone tried them for real, so the tools
   exist and say so instead.
+- **Video Producer agent**: shares the Studio chat with the Designer under one system prompt —
+  `skills/creative-director/SKILL.md` is the shared persona, with `skills/designer/SKILL.md` and
+  `skills/video-producer/SKILL.md` appended as capability sections and their tool sets merged into
+  one `streamText` call. This is a deliberate simplification versus spinning up separate agent
+  sessions per specialist: Claude natively handles picking the right tool across a merged set in
+  one call, and the Studio only has one chat panel to route into anyway. `generate_video` follows
+  the same poll-inside-the-tool-call pattern as image generation; `list_motions` is a small curated
+  set of camera-movement phrases we ship ourselves, not a Higgsfield endpoint — their public API's
+  only typed motion parameter takes opaque preset UUIDs with no endpoint to list valid ones, so
+  camera movement is really just prompt text. `poll_job` lets the agent follow up on a job that
+  didn't finish inside the initial 45s wait (video generation runs long). `reframe` is registered
+  but honestly unavailable — Higgsfield's public API has no endpoint that accepts an existing video
+  as input at all (confirmed by grepping the full OpenAPI spec for any `video_url`-shaped input;
+  there is none). Completed videos land in a bottom preview strip with a custom scrubbable timeline
+  (`src/components/studio/video-preview-panel.tsx`) rather than as a Konva canvas layer — video
+  doesn't fit the same static layer model as images/text/shapes.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.

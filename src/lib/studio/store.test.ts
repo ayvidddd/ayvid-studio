@@ -13,6 +13,7 @@ beforeEach(() => {
     selectedLayerId: null,
     history: [{ width: 1080, height: 1080, layers: [] }],
     cursor: 0,
+    videos: [],
   });
 });
 
@@ -91,5 +92,23 @@ describe("useStudioStore", () => {
 
     useStudioStore.getState().redo();
     expect(useStudioStore.getState().cursor).toBe(0);
+  });
+
+  it("addVideo appends to the video preview list without touching undo history", () => {
+    const historyLengthBefore = useStudioStore.getState().history.length;
+
+    useStudioStore.getState().addVideo({ id: "v1", jobId: "job1", url: "https://x/clip.mp4" });
+
+    const state = useStudioStore.getState();
+    expect(state.videos).toEqual([{ id: "v1", jobId: "job1", url: "https://x/clip.mp4" }]);
+    expect(state.history).toHaveLength(historyLengthBefore);
+  });
+
+  it("loadDesign resets the video preview list for the new design", () => {
+    useStudioStore.getState().addVideo({ id: "v1", jobId: "job1", url: "https://x/clip.mp4" });
+
+    useStudioStore.getState().loadDesign("design2", { width: 1080, height: 1080, layers: [] });
+
+    expect(useStudioStore.getState().videos).toEqual([]);
   });
 });

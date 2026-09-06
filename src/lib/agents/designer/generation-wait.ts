@@ -1,9 +1,8 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
 import { syncJobStatus } from "@/lib/higgsfield/jobs";
 import { INITIAL_POLL_DELAY_MS, nextPollDelayMs } from "@/lib/higgsfield/poll";
 import { GenerationStatus } from "@/generated/prisma/enums";
-import { signedGenerationOutputUrl } from "@/lib/storage/generation-outputs";
+import { resolveJobOutputUrls } from "@/lib/agents/job-outputs";
 
 const TERMINAL_STATUSES: readonly GenerationStatus[] = [
   GenerationStatus.COMPLETED,
@@ -39,11 +38,6 @@ export async function waitForGenerationJob(jobId: string): Promise<GenerationWai
     return { status: job.status, jobId: job.id, errorMessage: job.errorMessage };
   }
 
-  const outputs = await prisma.generationOutput.findMany({
-    where: { jobId: job.id },
-    orderBy: { position: "asc" },
-  });
-  const images = await Promise.all(outputs.map((output) => signedGenerationOutputUrl(output.storagePath)));
-
+  const images = await resolveJobOutputUrls(job.id);
   return { status: GenerationStatus.COMPLETED, jobId: job.id, images };
 }

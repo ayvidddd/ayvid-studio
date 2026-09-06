@@ -7,6 +7,7 @@ import { LayersPanel } from "./layers-panel";
 import { StudioCanvas } from "./studio-canvas";
 import { StudioToolbar } from "./studio-toolbar";
 import { ChatPanel } from "./chat-panel";
+import { VideoPreviewPanel } from "./video-preview-panel";
 
 export function StudioWorkspace({
   designId,
@@ -31,8 +32,11 @@ export function StudioWorkspace({
       <StudioToolbar designId={designId} designName={designName} />
       <div className="flex flex-1 overflow-hidden">
         <LayersPanel />
-        <div className="flex flex-1 items-center justify-center overflow-auto p-6">
-          <StudioCanvas />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex flex-1 items-center justify-center overflow-auto p-6">
+            <StudioCanvas />
+          </div>
+          <VideoPreviewPanel />
         </div>
         <div className="flex w-80 flex-col border-l border-border">
           <ChatPanel designId={designId} />

@@ -4,6 +4,12 @@ import { EMPTY_CANVAS } from "./types";
 
 const MAX_HISTORY = 100;
 
+export interface VideoPreview {
+  id: string;
+  jobId: string;
+  url: string;
+}
+
 interface EditorState {
   designId: string | null;
   canvas: CanvasSnapshot;
@@ -12,6 +18,10 @@ interface EditorState {
   /** Committed snapshots for undo/redo. `history[cursor]` is always equal to `canvas`. */
   history: CanvasSnapshot[];
   cursor: number;
+
+  /** Session-local list of generated video previews for this design — not part of undo/redo history. */
+  videos: VideoPreview[];
+  addVideo: (video: VideoPreview) => void;
 
   loadDesign: (designId: string, canvas: CanvasSnapshot) => void;
   selectLayer: (id: string | null) => void;
@@ -46,8 +56,12 @@ export const useStudioStore = create<EditorState>((set, get) => ({
   selectedLayerId: null,
   history: [EMPTY_CANVAS],
   cursor: 0,
+  videos: [],
 
-  loadDesign: (designId, canvas) => set({ designId, canvas, history: [canvas], cursor: 0, selectedLayerId: null }),
+  addVideo: (video) => set((state) => ({ videos: [...state.videos, video] })),
+
+  loadDesign: (designId, canvas) =>
+    set({ designId, canvas, history: [canvas], cursor: 0, selectedLayerId: null, videos: [] }),
 
   selectLayer: (id) => set({ selectedLayerId: id }),
 
