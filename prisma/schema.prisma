@@ -84,6 +84,7 @@ model Workspace {
   invites        WorkspaceInvite[]
   brandKit       BrandKit?
   generationJobs GenerationJob[]
+  designs        Design[]
 }
 
 model WorkspaceMember {
@@ -216,4 +217,40 @@ model GenerationOutput {
   job GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
+}
+
+// ---------- Studio designs (canvas + version history) ----------
+
+model Design {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions  DesignVersion[]
+
+  @@index([workspaceId, updatedAt])
+}
+
+model DesignVersion {
+  id       String @id @default(cuid())
+  designId String
+
+  /**
+   * Ordinal within the design, starting at 0. Used to order and truncate history on undo -> new edit.
+   */
+  sequence Int
+  /**
+   * Full layer-tree snapshot for this version — see src/lib/studio/types.ts for the shape.
+   */
+  layers   Json
+
+  createdAt DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@unique([designId, sequence])
 }

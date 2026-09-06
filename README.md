@@ -6,9 +6,11 @@ creatives, and short video ads live on a canvas. Higgsfield is the generation ba
 ## Status
 
 **Milestone 1**: auth, workspace/Brand Kit schema, Brand Kit CRUD.
-**Milestone 2** (this commit): Higgsfield client with mock mode, the async generation job system,
-SSE progress streaming, and a webhook endpoint. Later milestones (Studio canvas, agents, billing,
-motion polish, deploy) land as the project progresses.
+**Milestone 2**: Higgsfield client with mock mode, the async generation job system, SSE progress
+streaming, and a webhook endpoint.
+**Milestone 3** (this commit): Studio three-panel layout, an editable Konva canvas (text/shape/
+image layers, drag/resize/rotate), and persisted version history with undo/redo. Later milestones
+(agents wired to the canvas, billing, motion polish, deploy) land as the project progresses.
 
 ## Stack
 
@@ -118,5 +120,15 @@ file) — no live database is required to run the test suite.
   job reaches a terminal state. `POST /api/higgsfield/webhook` is the faster path when Higgsfield
   reaches us directly — it just re-triggers the same status sync rather than trusting the webhook
   body, since Higgsfield doesn't sign webhook payloads.
+- **Studio canvas**: `src/lib/studio/store.ts` is a Zustand store with two tiers of mutation —
+  `updateLayerLive` (no history entry, used for continuous drag/resize) and `commitLayerChange`
+  (one history entry, used on drag-end/resize-end/add/delete). This keeps a 20-layer drag smooth
+  instead of pushing a history snapshot on every mousemove, while undo/redo still lands on
+  meaningful checkpoints. Undoing then making a new edit discards the redo branch, standard
+  editor semantics. `Design`/`DesignVersion` persist explicit "Save version" checkpoints server-side
+  (append-only, `sequence`-ordered) — this is separate from the in-session undo/redo stack, which
+  is intentionally client-only and reset on reload.
+- Konva requires `window`/canvas APIs, so the canvas is loaded via `next/dynamic(..., { ssr: false })`
+  — it can never render during SSR.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.
