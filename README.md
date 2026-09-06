@@ -20,11 +20,15 @@ motion presets and job-status follow-up.
 `create_campaign` turns a brief into a full multi-format deliverable set, copy gets saved per
 platform with a real banned-word check, and a campaign page exports every format as a PNG (plus a
 copy.txt) in one ZIP, all rendered client-side.
-**Milestone 7** (this commit): the landing page got GSAP entrance animations, an ambient
-`@tsparticles` background, and a "materialize" effect when a generated layer lands on the canvas;
-the marketing page is Lighthouse-verified at a **96 performance score**. Credit top-ups now run
-through Stripe Checkout (`/billing`) with a webhook that credits the workspace on
-`checkout.session.completed`. Milestone 8 (full test suite, Playwright E2E, deploy) is next.
+**Milestone 7**: the landing page got GSAP entrance animations, an ambient `@tsparticles`
+background, and a "materialize" effect when a generated layer lands on the canvas; the marketing
+page is Lighthouse-verified at a **96 performance score**. Credit top-ups now run through Stripe
+Checkout (`/billing`) with a webhook that credits the workspace on `checkout.session.completed`.
+**Milestone 8** (this commit): expanded Vitest coverage (skill-file loading, storage error paths,
+Higgsfield input-schema boundaries), a Playwright E2E suite (`e2e/`) covering sign-up, Brand Kit
+editing, manual canvas/export, and agent-driven generation + campaign export, and deploy
+preparation — see "Deploying" below for why an actual live deploy is a separate, explicit step
+rather than something this milestone does on its own.
 
 ## Stack
 
@@ -104,14 +108,50 @@ and file uploads need their respective real credentials too.
 ## Testing
 
 ```bash
-pnpm test        # vitest run
+pnpm test        # vitest run — unit/integration, Prisma & Storage mocked, no live DB needed
 pnpm test:watch  # vitest --watch
+pnpm test:e2e    # playwright test — see below, needs a live app + database
 pnpm lint        # eslint
 pnpm exec tsc --noEmit
 ```
 
 Server actions are tested with Prisma/Storage mocked out (see `*.test.ts` next to each action
-file) — no live database is required to run the test suite.
+file) — no live database is required to run the Vitest suite.
+
+**End-to-end (Playwright, `e2e/`)**: exercises sign-up, Brand Kit editing, manual canvas
+layers/export, agent-driven image/edit/video generation via chat, and campaign ZIP export against
+a real running app. Setup:
+
+1. `pnpm exec playwright install chromium` (one-time, downloads the browser).
+2. `cp .env.test.example .env.local` and fill it in — see that file for what's required. A real
+   (or `pnpm exec prisma dev`) Postgres and Supabase Storage are needed since these specs sign up
+   real users and upload/render real data; `HIGGSFIELD_MODE=mock` keeps generation credit-free.
+3. `pnpm test:e2e` — Playwright starts `pnpm dev` for you (via `webServer` in
+   `playwright.config.ts`) and runs `e2e/auth.setup.ts` first to sign up a throwaway user and save
+   its session for every other spec.
+
+`agent-chat.spec.ts` and `campaign-export.spec.ts` self-skip with a clear reason unless
+`ANTHROPIC_API_KEY` is set — like the chat itself, there is no offline mock for the model, only for
+Higgsfield, so those two files are the one part of the suite that spends a small amount of real
+API usage. `brand-kit.spec.ts` and `studio-canvas.spec.ts` never touch the agent and always run.
+
+## Deploying
+
+The app builds cleanly for Vercel as-is (Next.js 15 App Router, no custom server). Nothing here
+runs `vercel deploy` automatically: pushing a live deployment is a shared, hard-to-reverse action,
+and — same caveat as `ANTHROPIC_API_KEY`/`STRIPE_SECRET_KEY` above — this repo only has placeholder
+credentials, so a deploy right now would put up a real public URL that can't actually sign anyone
+in, generate anything, or take a payment. Once real credentials for Supabase/NextAuth/Anthropic/
+Higgsfield/Stripe exist:
+
+1. Set every var from `.env.example` in the Vercel project's Environment Variables (Production).
+2. Point `STRIPE_WEBHOOK_SECRET` at a webhook endpoint configured for the deployed
+   `https://<domain>/api/billing/webhook`, and `HIGGSFIELD_API_BASE_URL`'s webhook (if used) at
+   `https://<domain>/api/higgsfield/webhook`.
+3. `NEXTAUTH_URL` must be the deployed URL, not `localhost`, or both NextAuth callbacks and Stripe
+   Checkout's success/cancel URLs will point at the wrong host.
+4. Run `pnpm exec prisma migrate deploy` against the production database before or during the
+   first deploy — Vercel's build step does not run migrations for you.
 
 ## Notable implementation notes
 

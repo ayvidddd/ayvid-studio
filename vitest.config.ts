@@ -11,5 +11,8 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
     globals: false,
+    // Playwright owns everything under e2e/ — keep Vitest from trying to run
+    // *.spec.ts files that import from @playwright/test.
+    exclude: ["**/node_modules/**", "e2e/**"],
   },
 });
