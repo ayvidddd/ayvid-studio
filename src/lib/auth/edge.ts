@@ -1,6 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-
-const PROTECTED_PREFIXES = ["/studio", "/brand-kit", "/workspace", "/onboarding"];
+import { PROTECTED_ROUTE_PREFIXES } from "./protected-routes";
 
 /**
  * Edge-safe subset of the NextAuth config: no Prisma adapter, no bcrypt, no
@@ -15,7 +14,7 @@ export const edgeAuthConfig = {
   providers: [],
   callbacks: {
     authorized: ({ auth, request }) => {
-      const isProtected = PROTECTED_PREFIXES.some((prefix) =>
+      const isProtected = PROTECTED_ROUTE_PREFIXES.some((prefix) =>
         request.nextUrl.pathname.startsWith(prefix),
       );
       if (!isProtected) return true;
