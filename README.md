@@ -5,9 +5,10 @@ creatives, and short video ads live on a canvas. Higgsfield is the generation ba
 
 ## Status
 
-**Milestone 1** (this commit): auth, workspace/Brand Kit schema, Brand Kit CRUD. Later
-milestones (Higgsfield job system, Studio canvas, agents, billing, motion polish, deploy) land as
-the project progresses — see the task list in project history for the full delivery order.
+**Milestone 1**: auth, workspace/Brand Kit schema, Brand Kit CRUD.
+**Milestone 2** (this commit): Higgsfield client with mock mode, the async generation job system,
+SSE progress streaming, and a webhook endpoint. Later milestones (Studio canvas, agents, billing,
+motion polish, deploy) land as the project progresses.
 
 ## Stack
 
@@ -38,19 +39,25 @@ Supabase Postgres + Storage · NextAuth v5 (Auth.js) · Zod · Vitest
    - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — a Google Cloud OAuth client with
      `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
    - `EMAIL_SERVER` / `EMAIL_FROM` — any SMTP transport, used for magic-link sign-in.
-   - `ANTHROPIC_API_KEY`, `HIGGSFIELD_API_KEY_ID`/`_SECRET` — not required until Milestone 2/4,
-     but declared now so `.env.local` doesn't need to change shape later.
+   - `HIGGSFIELD_API_KEY_ID`/`_SECRET` — from your Higgsfield dashboard. Leave `HIGGSFIELD_MODE`
+     set to `mock` to exercise the full job lifecycle (queued → in_progress → completed) without
+     calling the real API or spending credits; set it to `live` once you have real keys. Tests
+     always run in mock mode regardless of this setting.
+   - `ANTHROPIC_API_KEY` — not required until Milestone 4, but declared now so `.env.local`
+     doesn't need to change shape later.
 
    For local development without a Supabase project yet, `pnpm exec prisma dev` spins up a
    throwaway local Postgres and prints a connection string you can use for both `DATABASE_URL`
    and `DIRECT_URL` — useful for testing the schema/migrations before wiring up Supabase, though
    file uploads still need real Supabase Storage credentials.
 
-3. **Create the Supabase Storage bucket**
+3. **Create the Supabase Storage buckets**
 
-   In the Supabase dashboard, create a **private** bucket named `brand-assets`. The app reads and
-   writes it with the service-role key and serves objects via short-lived signed URLs — it should
-   not be public.
+   In the Supabase dashboard, create two **private** buckets: `brand-assets` and `generations`.
+   The app reads and writes both with the service-role key and serves objects via short-lived
+   signed URLs — neither should be public. `generations` holds downloaded Higgsfield outputs
+   (Higgsfield's own URLs expire after ~7 days, so completed jobs are copied into our storage
+   immediately).
 
 4. **Run migrations**
 
@@ -97,5 +104,19 @@ file) — no live database is required to run the test suite.
   earliest membership.
 - **Brand Kit**: one Brand Kit per workspace. Uploading a logo re-extracts the palette
   automatically via `node-vibrant`; the palette is then freely editable.
+- **Higgsfield jobs**: `src/lib/higgsfield/client.ts` is a thin, Zod-validated wrapper around
+  Higgsfield's async job API (key-pair auth, `queued → in_progress → completed/failed/nsfw/canceled`).
+  `src/lib/higgsfield/jobs.ts` owns the app-level lifecycle: creates a `GenerationJob` row, checks
+  the workspace's credit balance before spending anything, and on completion downloads every
+  output into the `generations` bucket and decrements credits — never links to Higgsfield's own
+  (expiring) URLs directly. `HIGGSFIELD_MODE=mock` swaps in an in-memory fake job lifecycle keyed
+  by poll count (not wall-clock time), so tests and local dev never make real network calls or
+  spend real credits. The credit costs in `PLACEHOLDER_CREDIT_COST` are flat placeholders pending
+  Higgsfield's per-model cost-estimate endpoint.
+- **Progress delivery**: `GET /api/jobs/[id]/events` is a Server-Sent Events stream that polls
+  job status with the backoff Higgsfield recommends (2s → x1.5 → 10s cap, plus jitter) until the
+  job reaches a terminal state. `POST /api/higgsfield/webhook` is the faster path when Higgsfield
+  reaches us directly — it just re-triggers the same status sync rather than trusting the webhook
+  body, since Higgsfield doesn't sign webhook payloads.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.

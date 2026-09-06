@@ -80,9 +80,10 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships WorkspaceMember[]
-  invites     WorkspaceInvite[]
-  brandKit    BrandKit?
+  memberships    WorkspaceMember[]
+  invites        WorkspaceInvite[]
+  brandKit       BrandKit?
+  generationJobs GenerationJob[]
 }
 
 model WorkspaceMember {
@@ -156,4 +157,63 @@ model BrandAsset {
   brandKit BrandKit @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
 
   @@index([brandKitId, type])
+}
+
+// ---------- Generation jobs (Higgsfield) ----------
+
+enum GenerationKind {
+  IMAGE
+  VIDEO
+}
+
+enum GenerationStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  NSFW
+  CANCELED
+}
+
+model GenerationJob {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  kind   GenerationKind
+  model  String
+  prompt String         @db.Text
+  params Json           @default("{}")
+
+  status            GenerationStatus @default(QUEUED)
+  providerRequestId String?          @unique
+  creditsUsed       Int?
+  errorMessage      String?          @db.Text
+
+  parentJobId String?
+  parentJob   GenerationJob?  @relation("JobLineage", fields: [parentJobId], references: [id], onDelete: SetNull)
+  children    GenerationJob[] @relation("JobLineage")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  outputs   GenerationOutput[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model GenerationOutput {
+  id    String @id @default(cuid())
+  jobId String
+
+  storagePath String
+  mimeType    String
+  seed        String?
+  position    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  job GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
 }
