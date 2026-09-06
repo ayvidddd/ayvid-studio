@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useStudioStore, createLayerId } from "@/lib/studio/store";
 import { Send } from "lucide-react";
+import { toast } from "sonner";
 
 interface GenerationToolOutput {
   ok: boolean;
@@ -34,6 +35,13 @@ function isToolPart(part: UIMessage["parts"][number]): part is Extract<
 const IMAGE_PRODUCING_TOOLS = new Set(["tool-generate_image", "tool-edit_image"]);
 const VIDEO_PRODUCING_TOOLS = new Set(["tool-generate_video"]);
 
+// The server (src/app/api/studio/[designId]/chat/route.ts) already maps raw
+// errors to a specific, safe-to-display message via toUIMessageStreamResponse's
+// onError — this just prefixes it for context in the chat transcript.
+function describeChatError(error: Error): string {
+  return `Chat error: ${error.message}`;
+}
+
 export function ChatPanel({ designId }: { designId: string }) {
   const [input, setInput] = useState("");
   const addLayer = useStudioStore((s) => s.addLayer);
@@ -44,7 +52,10 @@ export function ChatPanel({ designId }: { designId: string }) {
   const [transport] = useState(
     () => new DefaultChatTransport({ api: `/api/studio/${designId}/chat`, body: { designId } }),
   );
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status, error } = useChat({
+    transport,
+    onError: (err) => toast.error(describeChatError(err)),
+  });
 
   useEffect(() => {
     for (const message of messages) {
@@ -104,6 +115,11 @@ export function ChatPanel({ designId }: { designId: string }) {
           {messages.map((message) => (
             <ChatMessageBubble key={message.id} message={message} />
           ))}
+          {error && (
+            <div className="max-w-[85%] self-start rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {describeChatError(error)}
+            </div>
+          )}
         </div>
       </ScrollArea>
 
