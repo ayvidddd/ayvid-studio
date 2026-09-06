@@ -13,10 +13,14 @@ drag/resize/rotate), and persisted version history with undo/redo.
 **Milestone 4**: the Designer agent, chatting live in the Studio's right panel — generates and
 edits images via Higgsfield, applies the Brand Kit, and materializes results straight onto the
 canvas.
-**Milestone 5** (this commit): the Video Producer joins the same Studio chat under a shared
-Creative Director persona — animates a still into a short video with a scrubbable preview
-timeline, plus curated motion presets and job-status follow-up. Later milestones (copywriting,
-campaign export, billing, motion polish, deploy) land as the project progresses.
+**Milestone 5**: the Video Producer joins the same Studio chat under a shared Creative Director
+persona — animates a still into a short video with a scrubbable preview timeline, plus curated
+motion presets and job-status follow-up.
+**Milestone 6** (this commit): Copywriter and Campaign Strategist join the same shared chat —
+`create_campaign` turns a brief into a full multi-format deliverable set, copy gets saved per
+platform with a real banned-word check, and a campaign page exports every format as a PNG (plus a
+copy.txt) in one ZIP, all rendered client-side. Later milestones (billing, motion polish, deploy)
+land as the project progresses.
 
 ## Stack
 
@@ -168,5 +172,22 @@ file) — no live database is required to run the test suite.
   there is none). Completed videos land in a bottom preview strip with a custom scrubbable timeline
   (`src/components/studio/video-preview-panel.tsx`) rather than as a Konva canvas layer — video
   doesn't fit the same static layer model as images/text/shapes.
+- **Copywriter & Campaign Strategist**: also merged into the same shared chat/tool set —
+  `create_campaign` creates a `Campaign` row plus one `Design` per standard format (Meta square,
+  TikTok/Story vertical, LinkedIn, Google Display), each sized correctly from the start.
+  `save_copy_variant` is the Copywriter's one real piece of business logic: it checks the
+  agent-written text against the Brand Kit's banned words *in code*, not just by asking the model
+  nicely, and rejects the save with a specific reason if one slips through.
+- **Campaign export**: `src/lib/export/render-canvas.ts` renders a saved canvas snapshot to a PNG
+  entirely client-side, using vanilla Konva (not react-konva) against an off-screen, detached
+  `Stage` — no server-side canvas rendering, no native `canvas` package dependency. A campaign's
+  "Export ZIP" button (`src/lib/export/campaign-export.ts`) renders every format's latest saved
+  version this way, adds a `copy.txt` of saved copy variants, and zips the result with `jszip`. A
+  single design's toolbar has its own "Export PNG" that renders the *live* (possibly unsaved)
+  canvas instead. **Known gap, called out rather than hidden:** generated videos aren't included in
+  a campaign export — `GenerationJob` rows aren't linked back to a `Design`/`Campaign` in the
+  schema, so a completed video only exists in the in-session preview panel + the DB's job history,
+  not in a place the export step can look them up. Wiring that association is a reasonable
+  fast-follow, not done here.
 - You'll see a Next.js build warning about `jose`/Edge Runtime in the middleware bundle — that's
   a known, harmless artifact of next-auth's JWT library and doesn't affect behavior.

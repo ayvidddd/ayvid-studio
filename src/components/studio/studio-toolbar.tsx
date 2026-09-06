@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useStudioStore } from "@/lib/studio/store";
 import { saveDesignVersion } from "@/lib/studio/actions";
-import { Undo2, Redo2, Save } from "lucide-react";
+import { exportDesignPng } from "@/lib/export/campaign-export";
+import { Undo2, Redo2, Save, Download } from "lucide-react";
 import { toast } from "sonner";
 
 export function StudioToolbar({ designId, designName }: { designId: string; designName: string }) {
@@ -14,6 +15,7 @@ export function StudioToolbar({ designId, designName }: { designId: string; desi
   const canUndo = useStudioStore((s) => s.canUndo());
   const canRedo = useStudioStore((s) => s.canRedo());
   const [isSaving, startSaving] = useTransition();
+  const [isExporting, startExporting] = useTransition();
   const [lastSavedSequence, setLastSavedSequence] = useState<number | null>(null);
 
   function handleSave() {
@@ -25,6 +27,16 @@ export function StudioToolbar({ designId, designName }: { designId: string; desi
       }
       setLastSavedSequence(result.data.sequence);
       toast.success("Version saved.");
+    });
+  }
+
+  function handleExportPng() {
+    startExporting(async () => {
+      try {
+        await exportDesignPng(canvas, designName);
+      } catch {
+        toast.error("Could not export this design as PNG.");
+      }
     });
   }
 
@@ -40,6 +52,9 @@ export function StudioToolbar({ designId, designName }: { designId: string; desi
         </Button>
         <Button size="sm" variant="outline" disabled={isSaving} onClick={handleSave}>
           <Save /> {isSaving ? "Saving…" : lastSavedSequence !== null ? `Saved v${lastSavedSequence}` : "Save version"}
+        </Button>
+        <Button size="sm" variant="outline" disabled={isExporting} onClick={handleExportPng}>
+          <Download /> {isExporting ? "Exporting…" : "Export PNG"}
         </Button>
       </div>
     </div>

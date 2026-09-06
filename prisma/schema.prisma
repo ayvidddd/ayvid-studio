@@ -85,6 +85,7 @@ model Workspace {
   brandKit       BrandKit?
   generationJobs GenerationJob[]
   designs        Design[]
+  campaigns      Campaign[]
 }
 
 model WorkspaceMember {
@@ -222,17 +223,24 @@ model GenerationOutput {
 // ---------- Studio designs (canvas + version history) ----------
 
 model Design {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   name        String
+  campaignId  String?
+  /**
+   * e.g. "Meta Square 1080x1080" — set when this design was created as part of a campaign's format set.
+   */
+  formatLabel String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   versions  DesignVersion[]
 
   @@index([workspaceId, updatedAt])
+  @@index([campaignId])
 }
 
 model DesignVersion {
@@ -253,4 +261,50 @@ model DesignVersion {
   design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
 
   @@unique([designId, sequence])
+}
+
+// ---------- Campaigns (Campaign Strategist + Copywriter) ----------
+
+enum CampaignPlatform {
+  META
+  TIKTOK
+  LINKEDIN
+  GOOGLE_DISPLAY
+}
+
+enum CopyKind {
+  HEADLINE
+  CTA
+  CAPTION
+}
+
+model Campaign {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  goal        String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  designs      Design[]
+  copyVariants CopyVariant[]
+
+  @@index([workspaceId, updatedAt])
+}
+
+model CopyVariant {
+  id           String           @id @default(cuid())
+  campaignId   String
+  platform     CampaignPlatform
+  kind         CopyKind
+  variantLabel String           @default("A")
+  text         String           @db.Text
+
+  createdAt DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
 }
